@@ -39,6 +39,10 @@ std::vector<RDP::Point2d> RDP::DouglasPeucker::Simplify(std::vector<Point2d>& po
 	return resultList;
 }
 
+int RDP::DouglasPeucker::getTValue(std::vector<Point2d>& pointList, float step, size_t pointsCount, int i) {
+	return Simplify(pointList, step * i).size() - pointsCount;
+}
+
 std::vector<RDP::Point2d> RDP::DouglasPeucker::SimplifyTo(std::vector<Point2d>& pointList, size_t pointsCount)
 {
 	std::vector<Point2d> resultList;
@@ -51,11 +55,9 @@ std::vector<RDP::Point2d> RDP::DouglasPeucker::SimplifyTo(std::vector<Point2d>& 
 		resultList.assign(pointList.begin(), pointList.end());
 	}
 	else {
-		int max = std::numeric_limits<int>::max();
-		const float step = maxDistance(pointList,perpendicularDistance).distance_ / max;
-		float epsilon = step * binarySearch([&pointList, step, pointsCount](int i) {
-			return Simplify(pointList, step * i).size() - pointsCount;
-			});
+		constexpr int max = std::numeric_limits<int>::max();
+		const float step = maxDistance(pointList,true).distance_ / max;
+		float epsilon = step * binarySearch(pointList, step, pointsCount);
 		resultList = Simplify(pointList, epsilon);
 	}
 	return resultList;
@@ -65,7 +67,7 @@ float RDP::DouglasPeucker::perpendicularDistance(const Point2d& p, const Point2d
 {
 	Point2d vec1 = Point2d(p.x_ - line_p1.x_, p.y_ - line_p1.y_);
 	Point2d vec2 = Point2d(line_p2.x_ - line_p1.x_, line_p2.y_ - line_p1.y_);
-	float d_vec2 = sqrt(vec2.x_*vec2.x_ + vec2.y_*vec2.y_);
+	float d_vec2 = sqrt((float)vec2.x_*vec2.x_ + (float)vec2.y_*vec2.y_);
 	float cross_product = vec1.x_*vec2.y_ - vec2.x_*vec1.y_;
 	float d = abs(cross_product / d_vec2);
 	return d;
@@ -82,7 +84,7 @@ float RDP::DouglasPeucker::shortestDistance(const Point2d& p, const Point2d& a, 
 		distance = point_dist_sqr(p, a);
 	}
 	else {
-		auto t = ((p.x_ - a.x_) * (b.x_ - a.x_) + (p.y_ - a.y_) * (b.y_ - a.y_)) / line_len_sqr;
+		double t = ((p.x_ - a.x_) * (b.x_ - a.x_) + (p.y_ - a.y_) * (b.y_ - a.y_)) / line_len_sqr;
 
 		if (t < 0) {
 			distance = point_dist_sqr(p, a);
@@ -91,22 +93,22 @@ float RDP::DouglasPeucker::shortestDistance(const Point2d& p, const Point2d& a, 
 			distance = point_dist_sqr(p, b);
 		}
 		else {
-			distance = point_dist_sqr(p, Point2d(a.x_ + t * (b.x_ - a.x_), a.y_ + t * (b.y_ - a.y_)));
+			distance = point_dist_sqr(p, Point2d(a.x_ + t * ((double)b.x_  - (double)a.x_ ), a.y_ + t * ((double)b.y_  - (double)a.y_)));
 		}
 	}
 	return sqrt(distance);
 }
 
-RDP::DistanceIndex RDP::DouglasPeucker::maxDistance(std::vector<Point2d>& points, std::function<float(const Point2d&, const Point2d&, const Point2d&)> distance_fn) {
-	auto first = points[0];
-	auto last = points[points.size() - 1];
+RDP::DistanceIndex RDP::DouglasPeucker::maxDistance(std::vector<Point2d>& points, bool use_perpendicular_dist) {
+	Point2d first = points[0];
+	Point2d last = points[points.size() - 1];
 
 	int index = -1;
 	float distance = 0;
 
 	for (size_t i = 1; i < points.size()-1; i++)
 	{
-		float d = distance_fn(points[i], first, last);
+		float d = use_perpendicular_dist ? perpendicularDistance(points[i], first, last) : shortestDistance(points[i],first,last);
 		if (d > distance) {
 			distance = d;
 			index = i;
@@ -116,12 +118,12 @@ RDP::DistanceIndex RDP::DouglasPeucker::maxDistance(std::vector<Point2d>& points
 
 }
 
-float RDP::DouglasPeucker::binarySearch(std::function<int(int)> test, float min, float max)
+float RDP::DouglasPeucker::binarySearch(std::vector<Point2d>& pointList, float step, size_t pointsCount, float min, float max)
 {
 	int l = floorl(min), r = floorl(max), m = floorl(l + (r -l)*0.5);
 	while (r-l >=1)
 	{
-		const int t = test(m);
+		const int t = getTValue(pointList, step, pointsCount, m);
 		if (t == 0) return m;
 		else if (t < 0) r = m - 1;
 		else l = m + 1;

@@ -44,7 +44,7 @@ int main()
 
 	std::vector<RDP::Point2d> result = RDP::DouglasPeucker::SimplifyTo(data, 150);
 	
-	//result = RDP::DouglasPeucker::Simplify(vertices1, 1.2);
+	//auto result = RDP::DouglasPeucker::Simplify(vertices1, 1.2);
 	for (auto p:result)
 		std::cout << p.x_ << " " << p.y_ << "\n";
 	
